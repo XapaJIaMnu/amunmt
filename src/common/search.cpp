@@ -7,6 +7,8 @@
 #include "common/filter.h"
 #include "common/base_matrix.h"
 
+#include "common/hypostate.h"
+
 using namespace std;
 
 namespace amunmt {
@@ -69,6 +71,10 @@ void Search::Decode(
 
   std::vector<size_t> beamSizes(batchSize, 1);
 
+  std::vector<exploredItem *> parents;
+  parents.reserve(400); //Say we explore 400 states;
+
+  //GREEDY BEST FIRST
   for (size_t decoderStep = 0; decoderStep < 3 * sentences.GetMaxLength(); ++decoderStep) {
     for (size_t i = 0; i < scorers_.size(); i++) {
       Scorer &scorer = *scorers_[i];
@@ -80,13 +86,36 @@ void Search::Decode(
 
     if (decoderStep == 0) {
       for (auto& beamSize : beamSizes) {
-      beamSize = god.Get<size_t>("beam-size");
+        beamSize = god.Get<size_t>("beam-size");
       }
     }
     Beams beams(batchSize);
     bool returnAlignment = god.Get<bool>("return-alignment");
 
+    //@TODO VARY BEAM SIZE HERE
     bestHyps_->CalcBeam(god, prevHyps, scorers_, filterIndices_, returnAlignment, beams, beamSizes);
+
+    //CreateChildren
+    std::vector<Hypothesis_states *> initial_children;
+    initial_children.reserve(beams[0].size());
+
+    for (HypothesisPtr hypo : beams[0]) {
+      StatePtr curState;
+      curState.reset(scorers_[0]->NewState()); //@TODO ensembling
+      std::vector<HypothesisPtr> survivors = {hypo};
+      scorers_[0]->AssembleBeamState(*nextStates[0], survivors, *curState);
+
+      Hypothesis_states * hypostate = new Hypothesis_states(hypo, curState, hypo->GetCost()); //This is a partial UNNORMALIZED SCORE
+      initial_children.push_back(hypostate);
+    }
+
+    //Create parent:
+    exploredItem * expl = new exploredItem(prevHyps[0]->GetCost(), decoderStep, initial_children);
+    parents.push_back(expl);
+    //Point each child to its parent:
+    for (Hypothesis_states * hypostate : initial_children) {
+      hypostate->parent = expl;
+    }
 
     for (size_t i = 0; i < batchSize; ++i) {
       if (!beams[i].empty()) {
@@ -94,7 +123,8 @@ void Search::Decode(
       }
     }
 
-    Beam survivors;
+    Beam survivors = std::vector<HypothesisPtr>{initial_children[0]->cur_hypo};
+    /*
     for (size_t batchID = 0; batchID < batchSize; ++batchID) {
       for (auto& h : beams[batchID]) {
         if (h->GetWord() != EOS) {
@@ -108,12 +138,17 @@ void Search::Decode(
     if (survivors.size() == 0) {
       break;
     }
+    */
+    if (survivors[0]->GetWord() == EOS) {
+      break;
+    }
 
     for (size_t i = 0; i < scorers_.size(); i++) {
       scorers_[i]->AssembleBeamState(*nextStates[i], survivors, *states[i]);
     }
 
     prevHyps.swap(survivors);
+
   }
 }
 
