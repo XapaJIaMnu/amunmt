@@ -94,6 +94,7 @@ void Search::Decode(
 
     //@TODO VARY BEAM SIZE HERE
     bestHyps_->CalcBeam(god, prevHyps, scorers_, filterIndices_, returnAlignment, beams, beamSizes);
+    std::sort(beams[0].begin(), beams[0].end(), [](HypothesisPtr& a, HypothesisPtr& b) -> bool { return a->GetCost() > b->GetCost(); });
 
     //CreateChildren
     std::vector<Hypothesis_states *> initial_children;
