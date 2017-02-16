@@ -8,6 +8,7 @@
 #include "common/base_matrix.h"
 
 #include "common/hypostate.h"
+#include <queue>
 
 using namespace std;
 
@@ -111,6 +112,7 @@ void Search::Decode(
     }
 
     //Create parent:
+    //@TODO the parent shouldn't include the first item because it's used now?
     exploredItem * expl = new exploredItem(prevHyps[0]->GetCost(), decoderStep, initial_children);
     parents.push_back(expl);
     //Point each child to its parent:

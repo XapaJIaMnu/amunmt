@@ -19,6 +19,14 @@ class Hypothesis_states {
         Hypothesis_states(HypothesisPtr, StatePtr, float);
 };
 
+bool operator< (const Hypothesis_states &left, const Hypothesis_states &right) {
+    return left.normalisedScore < right.normalisedScore;
+}
+
+bool operator> (const Hypothesis_states &left, const Hypothesis_states &right) {
+    return left.normalisedScore > right.normalisedScore;
+}
+
 Hypothesis_states::Hypothesis_states(HypothesisPtr current, StatePtr currentState, float normscore) :
     cur_hypo(current),
     cur_rnn_state(currentState),
