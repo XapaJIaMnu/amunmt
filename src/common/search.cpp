@@ -76,7 +76,7 @@ void Search::Decode(
   parents.reserve(400); //Say we explore 400 states;
 
   auto cmp =  [](Hypothesis_states * left, Hypothesis_states * right) 
-    -> bool {return *left < *right;};
+    -> bool {return *left > *right;};
   typedef std::priority_queue<Hypothesis_states*, std::vector<Hypothesis_states*>, decltype(cmp)> FineQ;
   std::vector<FineQ> all_queues;
 
@@ -84,12 +84,12 @@ void Search::Decode(
   // The vector 'coarse_q' holds indices to all_queues in a sorted PQ order, sorted using vecComp, and the approximated rest scores        .
   // vecComp: takes indices (word positions) left and right and finds which priority queue has higher top score.
   auto vecComp = [&all_queues](const std::pair<size_t, float>& left, const std::pair<size_t, float>& right) -> bool
-    {return all_queues[left.first].top()->accumulatedScore + left.second < all_queues[right.first].top()->accumulatedScore + right.second;};
+    {return all_queues[left.first].top()->accumulatedScore + left.second > all_queues[right.first].top()->accumulatedScore + right.second;};
 
   // index in all_queues; best score for the remaining part of the sentence
   std::vector<std::pair<size_t, float>> coarse_q;
 
-  std::vector<float> future_scores;
+  std::vector<float> future_scores; //This doesn't include the zeroth hypothesis (which is always the start of sentence)
 
   //GREEDY BEST FIRST
   for (size_t decoderStep = 0; decoderStep < 3 * sentences.GetMaxLength(); ++decoderStep) {
@@ -109,18 +109,19 @@ void Search::Decode(
     Beams beams(batchSize);
     bool returnAlignment = god.Get<bool>("return-alignment");
 
-    // Populate the future_scores with the score of the greedy
-    if (decoderStep == 0) {
-      future_scores.push_back(prevHyps[0]->GetCost());
-    } else {
-      future_scores.push_back(prevHyps[0]->GetCost() - prevHyps[0]->GetPrevHyp()->GetCost());
-    }
-    LOG(info) << "BLA " << future_scores[decoderStep];
-
-
     //@TODO VARY BEAM SIZE HERE
     bestHyps_->CalcBeam(god, prevHyps, scorers_, filterIndices_, returnAlignment, beams, beamSizes);
     std::sort(beams[0].begin(), beams[0].end(), [](HypothesisPtr& a, HypothesisPtr& b) -> bool { return a->GetCost() > b->GetCost(); });
+
+    // Populate the future_scores with the score of the greedy
+    //@TODO batching and multiple ensamblers (however it's spelled)
+    if (decoderStep == 0) {
+      future_scores.push_back(beams[0][0]->GetCost());
+    } else {
+      future_scores.push_back(beams[0][0]->GetCost() - beams[0][0]->GetPrevHyp()->GetCost());
+    }
+    LOG(info) << "BLA " << future_scores[decoderStep];
+
 
     //CreateChildren
     std::vector<Hypothesis_states *> initial_children;
@@ -181,6 +182,15 @@ void Search::Decode(
 
   }
 
+  //Our 0th index is actually the first word translated, because the 0th is always the <s> token
+  float accumulatedFutureScoreApproximation = 0;
+  coarse_q.resize(all_queues.size());
+  for (int i = coarse_q.size() - 1; i>=0; i--) {
+    accumulatedFutureScoreApproximation += future_scores[i];
+    coarse_q[i] = (std::pair<size_t, float>(i, accumulatedFutureScoreApproximation));
+  }
+  std::sort(coarse_q.begin(), coarse_q.end(), vecComp);
+
   for (auto& q : all_queues) {
     auto& e = q.top();
     LOG(info) << q.size();
@@ -191,6 +201,14 @@ void Search::Decode(
     }
     LOG(info) << "---";
   }
+
+  //Now do the refinements;
+  int limit = 0;
+  while (limit < 4000) {
+
+    limit++;
+  }
+
 }
 
 std::shared_ptr<Histories> Search::Process(const God &god, const Sentences& sentences) {
