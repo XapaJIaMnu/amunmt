@@ -14,23 +14,23 @@ class Hypothesis_states {
         exploredItem * parent = nullptr;
         HypothesisPtr cur_hypo;
         StatePtr cur_rnn_state;
-        float normalisedScore;
+        float accumulatedScore;
 
         Hypothesis_states(HypothesisPtr, StatePtr, float);
 };
 
 bool operator< (const Hypothesis_states &left, const Hypothesis_states &right) {
-    return left.normalisedScore < right.normalisedScore;
+    return left.accumulatedScore < right.accumulatedScore;
 }
 
 bool operator> (const Hypothesis_states &left, const Hypothesis_states &right) {
-    return left.normalisedScore > right.normalisedScore;
+    return left.accumulatedScore > right.accumulatedScore;
 }
 
-Hypothesis_states::Hypothesis_states(HypothesisPtr current, StatePtr currentState, float normscore) :
+Hypothesis_states::Hypothesis_states(HypothesisPtr current, StatePtr currentState, float accumscore) :
     cur_hypo(current),
     cur_rnn_state(currentState),
-    normalisedScore(normscore) {}
+    accumulatedScore(accumscore) {}
 
 class exploredItem {
     public:
