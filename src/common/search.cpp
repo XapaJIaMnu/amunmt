@@ -171,6 +171,7 @@ void Search::Decode(
     }
     */
     if (survivors[0]->GetWord() == EOS) {
+      float topScore = survivors[0]->GetCost()/decoderStep;
       break;
     }
 
@@ -205,6 +206,70 @@ void Search::Decode(
   //Now do the refinements;
   int limit = 0;
   while (limit < 4000) {
+    //Get the top element we want to expand
+    Hypothesis_states * top = all_queues[coarse_q[0].first].top();
+    all_queues[coarse_q[0].first].pop();
+
+    //Add next sibling to the priority_queue
+    //Push next child if such exists:
+    Hypothesis_states * next_child = top->parent->getNextChild();
+    if (next_child) {
+      all_queues[coarse_q[0].first].push(next_child);
+    }
+    
+    //If we reach an end of sentence we don't want to expand
+    if (top->cur_hypo->GetWord() == EOS) {
+      //@TODO check if its better than our one best.
+      float normalisedScore = top->accumulatedScore/(top->parent->word_idx + 1);
+      continue;
+    }
+
+    //Expand once. Assume we only have one decoder and no batches, because we are cheap. Sue us
+    for (size_t i = 0; i < scorers_.size(); i++) {
+      Scorer &scorer = *scorers_[i];
+
+      State &nextState = *nextStates[i];
+
+      scorer.Decode(god, *top->cur_rnn_state.get(), nextState, beamSizes);
+    }
+
+    Beams beams(batchSize);
+    bool returnAlignment = god.Get<bool>("return-alignment");
+
+    bestHyps_->CalcBeam(god, {top->cur_hypo}, scorers_, filterIndices_, returnAlignment, beams, beamSizes);
+    std::sort(beams[0].begin(), beams[0].end(), [](HypothesisPtr& a, HypothesisPtr& b) -> bool { return a->GetCost() > b->GetCost(); });
+
+    //CreateChildren
+    std::vector<Hypothesis_states *> children;
+    children.reserve(beams[0].size());
+
+    for (HypothesisPtr hypo : beams[0]) {
+      StatePtr curState;
+      curState.reset(scorers_[0]->NewState()); //@TODO ensembling
+      std::vector<HypothesisPtr> survivors = {hypo};
+      scorers_[0]->AssembleBeamState(*nextStates[0], survivors, *curState);
+
+      Hypothesis_states * hypostate = new Hypothesis_states(hypo, curState, hypo->GetCost()); //This is a partial UNNORMALIZED SCORE
+      children.push_back(hypostate);
+    }
+
+    //Create parent:
+    //@TODO the parent shouldn't include the first item because it's used now?
+    exploredItem * expl = new exploredItem(prevHyps[0]->GetCost(), coarse_q[0].first + 1, children);
+    parents.push_back(expl);
+    //Point each child to its parent:
+    for (Hypothesis_states * hypostate : children) {
+      hypostate->parent = expl;
+    }
+
+    //Put in the appropriate queue
+    if (all_queues.size() <= coarse_q[0].first + 1) {
+      all_queues.push_back(FineQ(cmp, {expl->getNextChild()}));
+    } else {
+      all_queues[coarse_q[0].first + 1].push(expl->getNextChild());
+    }
+    
+    //Update predictions
 
     limit++;
   }
