@@ -95,6 +95,9 @@ void Search::Decode(
 
   std::vector<float> future_scores; //This doesn't include the zeroth hypothesis (which is always the start of sentence)
 
+  float topScore = 0;
+  HypothesisPtr topHypo;
+
   //GREEDY BEST FIRST
   for (size_t decoderStep = 0; decoderStep < 3 * sentences.GetMaxLength(); ++decoderStep) {
     for (size_t i = 0; i < scorers_.size(); i++) {
@@ -175,7 +178,8 @@ void Search::Decode(
     }
     */
     if (survivors[0]->GetWord() == EOS) {
-      float topScore = survivors[0]->GetCost()/decoderStep;
+      topScore = survivors[0]->GetCost()/decoderStep;
+      topHypo = survivors[0];
       break;
     }
 
@@ -209,22 +213,44 @@ void Search::Decode(
 
   //Now do the refinements;
   int limit = 0;
-  while (limit < 4000) {
-    //Get the top element we want to expand
-    Hypothesis_states * top = all_queues[coarse_q[0].first].top();
-    all_queues[coarse_q[0].first].pop();
+  int completions = 1;
+  int refinements = 0;
+  while (limit < 100) {
+    limit++;
+
+    //Get the top element we want to expand. We might want to settle for second best if a queue is empty
+    Hypothesis_states * top = nullptr;
+    size_t chosen_q = 0;
+    for (std::pair<size_t, float> sorted_element : coarse_q) {
+      if (!all_queues[sorted_element.first].empty()) {
+        top = all_queues[sorted_element.first].top();
+        all_queues[sorted_element.first].pop();
+        chosen_q = sorted_element.first;
+        break;
+      }
+    }
+    //We couldn't find a top, break
+    if (!top) {
+      break;
+    }
 
     //Add next sibling to the priority_queue
     //Push next child if such exists:
     Hypothesis_states * next_child = top->parent->getNextChild();
     if (next_child) {
-      all_queues[coarse_q[0].first].push(next_child);
+      all_queues[chosen_q].push(next_child);
     }
     
     //If we reach an end of sentence we don't want to expand
     if (top->cur_hypo->GetWord() == EOS) {
-      //@TODO check if its better than our one best.
+      completions++;
+      //Check if it's better than the current one
       float normalisedScore = top->accumulatedScore/(top->parent->word_idx + 1);
+      if (normalisedScore > topScore) {
+        topScore = normalisedScore;
+        topHypo = top->cur_hypo;
+        refinements++;
+      }
       continue;
     }
 
@@ -259,7 +285,7 @@ void Search::Decode(
 
     //Create parent:
     //@TODO the parent shouldn't include the first item because it's used now?
-    exploredItem * expl = new exploredItem(prevHyps[0]->GetCost(), coarse_q[0].first + 1, children);
+    exploredItem * expl = new exploredItem(prevHyps[0]->GetCost(), chosen_q + 1, children);
     parents.push_back(expl);
     //Point each child to its parent:
     for (Hypothesis_states * hypostate : children) {
@@ -267,12 +293,12 @@ void Search::Decode(
     }
 
     //Put in the appropriate queue
-    if (all_queues.size() <= coarse_q[0].first + 1) {
+    if (all_queues.size() <= chosen_q + 1) {
       all_queues.push_back(FineQ(cmp, {expl->getNextChild()}));
       //Put a placeholder in coarse Q which will be updated later
-      coarse_q.push_back(std::pair<size_t, float>(coarse_q[0].first + 1, 0));
+      coarse_q.push_back(std::pair<size_t, float>(chosen_q + 1, 0));
     } else {
-      all_queues[coarse_q[0].first + 1].push(expl->getNextChild());
+      all_queues[chosen_q + 1].push(expl->getNextChild());
     }
     
     //Update predictions
@@ -280,15 +306,15 @@ void Search::Decode(
     //Update future score if necessary
     //@TODO batching and multiple ensamblers (however it's spelled)
     bool futurescoreUpdated = false;
-    if (future_scores.size() <= coarse_q[0].first + 1) {
+    if (future_scores.size() <= chosen_q + 1) {
       //If we have expanded the hypothesis past the previous maximum we push an updates future score
       future_scores.push_back(beams[0][0]->GetCost() - beams[0][0]->GetPrevHyp()->GetCost());
       futurescoreUpdated = true;
-    } else if (future_scores[coarse_q[0].first + 1] < (beams[0][0]->GetCost() - beams[0][0]->GetPrevHyp()->GetCost())){
-      LOG(info) << "Future score update: Before: " << future_scores[coarse_q[0].first + 1];
-      future_scores[coarse_q[0].first + 1] = (beams[0][0]->GetCost() - beams[0][0]->GetPrevHyp()->GetCost());
+    } else if (future_scores[chosen_q + 1] < (beams[0][0]->GetCost() - beams[0][0]->GetPrevHyp()->GetCost())){
+      LOG(info) << "Future score update: Before: " << future_scores[chosen_q + 1];
+      future_scores[chosen_q + 1] = (beams[0][0]->GetCost() - beams[0][0]->GetPrevHyp()->GetCost());
       //Updated future score:
-      LOG(info) << "Future score update: After: " << future_scores[coarse_q[0].first + 1];
+      LOG(info) << "Future score update: After: " << future_scores[chosen_q + 1];
       futurescoreUpdated = true;
     }
 
@@ -306,8 +332,10 @@ void Search::Decode(
       std::sort(coarse_q.begin(), coarse_q.end(), vecComp); //Just attempt to heapify again
     }
 
-    limit++;
   }
+  LOG(info) << "Top scoring hypothesis' score: " << topScore;
+  LOG(info) << "Completions: " << completions;
+  LOG(info) << "Refinements: " << refinements;
 
 }
 

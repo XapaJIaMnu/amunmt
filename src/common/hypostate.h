@@ -60,10 +60,10 @@ exploredItem::~exploredItem() {
 
 Hypothesis_states * exploredItem::getNextChild() {
     if (child_idx == children.size() - 1) {
-        for (auto item : children) {
-            delete item; //Be a good Cronus
-        }
-        children.clear(); //Might run into double free here, not certain.
+        //for (auto item : children) { //@TODO this creates issues when requesting next child because of hypothesis..
+        //    delete item; //Be a good Cronus
+        //} 
+        //children.clear(); //Might run into double free here, not certain.
         return nullptr;
     } else {
         child_idx++;
