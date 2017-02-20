@@ -86,6 +86,10 @@ void Search::Decode(
   auto vecComp = [&all_queues](const std::pair<size_t, float>& left, const std::pair<size_t, float>& right) -> bool
     {return all_queues[left.first].top()->accumulatedScore + left.second > all_queues[right.first].top()->accumulatedScore + right.second;};
 
+  // We also want a normal vector sort in the order of the queues so that we can easily update it
+  auto vecQueueSort = [](const std::pair<size_t, float>& left, const std::pair<size_t, float>& right) -> bool
+    {return left.first > left.second;};
+
   // index in all_queues; best score for the remaining part of the sentence
   std::vector<std::pair<size_t, float>> coarse_q;
 
@@ -265,11 +269,42 @@ void Search::Decode(
     //Put in the appropriate queue
     if (all_queues.size() <= coarse_q[0].first + 1) {
       all_queues.push_back(FineQ(cmp, {expl->getNextChild()}));
+      //Put a placeholder in coarse Q which will be updated later
+      coarse_q.push_back(std::pair<size_t, float>(coarse_q[0].first + 1, 0));
     } else {
       all_queues[coarse_q[0].first + 1].push(expl->getNextChild());
     }
     
     //Update predictions
+
+    //Update future score if necessary
+    //@TODO batching and multiple ensamblers (however it's spelled)
+    bool futurescoreUpdated = false;
+    if (future_scores.size() <= coarse_q[0].first + 1) {
+      //If we have expanded the hypothesis past the previous maximum we push an updates future score
+      future_scores.push_back(beams[0][0]->GetCost() - beams[0][0]->GetPrevHyp()->GetCost());
+      futurescoreUpdated = true;
+    } else if (future_scores[coarse_q[0].first + 1] < (beams[0][0]->GetCost() - beams[0][0]->GetPrevHyp()->GetCost())){
+      LOG(info) << "Future score update: Before: " << future_scores[coarse_q[0].first + 1];
+      future_scores[coarse_q[0].first + 1] = (beams[0][0]->GetCost() - beams[0][0]->GetPrevHyp()->GetCost());
+      //Updated future score:
+      LOG(info) << "Future score update: After: " << future_scores[coarse_q[0].first + 1];
+      futurescoreUpdated = true;
+    }
+
+    //Update the estimates: @TODO do less work here.
+    if (futurescoreUpdated) {
+      std::sort(coarse_q.begin(), coarse_q.end(), vecQueueSort); //Restore the queue in default order:
+      accumulatedFutureScoreApproximation = 0;
+      for (int i = coarse_q.size() - 1; i>=0; i--) {
+        accumulatedFutureScoreApproximation += future_scores[i];
+        coarse_q[i] = (std::pair<size_t, float>(i, accumulatedFutureScoreApproximation));
+      }
+      std::sort(coarse_q.begin(), coarse_q.end(), vecComp);
+    } else {
+      //Resort/update the queues
+      std::sort(coarse_q.begin(), coarse_q.end(), vecComp); //Just attempt to heapify again
+    }
 
     limit++;
   }
