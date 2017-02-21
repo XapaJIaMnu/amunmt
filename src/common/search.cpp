@@ -88,7 +88,7 @@ void Search::Decode(
 
   // We also want a normal vector sort in the order of the queues so that we can easily update it
   auto vecQueueSort = [](const std::pair<size_t, float>& left, const std::pair<size_t, float>& right) -> bool
-    {return left.first > left.second;};
+    {return left.first > right.first;};
 
   // index in all_queues; best score for the remaining part of the sentence
   std::vector<std::pair<size_t, float>> coarse_q;
@@ -178,7 +178,7 @@ void Search::Decode(
     }
     */
     if (survivors[0]->GetWord() == EOS) {
-      topScore = survivors[0]->GetCost()/decoderStep;
+      topScore = survivors[0]->GetCost()/(decoderStep + 1);
       topHypo = survivors[0];
       break;
     }
@@ -215,7 +215,7 @@ void Search::Decode(
   int limit = 0;
   int completions = 1;
   int refinements = 0;
-  while (limit < 100) {
+  while (limit < 500) {
     limit++;
 
     //Get the top element we want to expand. We might want to settle for second best if a queue is empty
@@ -246,6 +246,7 @@ void Search::Decode(
       completions++;
       //Check if it's better than the current one
       float normalisedScore = top->accumulatedScore/(top->parent->word_idx + 1);
+      LOG(info) << "New completion found: score: " << normalisedScore << " Previous best: " << topScore;
       if (normalisedScore > topScore) {
         topScore = normalisedScore;
         topHypo = top->cur_hypo;
