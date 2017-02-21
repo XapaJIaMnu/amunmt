@@ -76,7 +76,7 @@ void Search::Decode(
   parents.reserve(400); //Say we explore 400 states;
 
   auto cmp =  [](Hypothesis_states * left, Hypothesis_states * right) 
-    -> bool {return *left > *right;};
+    -> bool {return *left < *right;}; //We want a reverse priority here so that the smallest element is the first
   typedef std::priority_queue<Hypothesis_states*, std::vector<Hypothesis_states*>, decltype(cmp)> FineQ;
   std::vector<FineQ> all_queues;
 
@@ -135,7 +135,7 @@ void Search::Decode(
     } else {
       future_scores.push_back(beams[0][0]->GetCost() - beams[0][0]->GetPrevHyp()->GetCost());
     }
-    LOG(info) << "BLA " << future_scores[decoderStep];
+    //LOG(info) << "BLA " << future_scores[decoderStep];
 
 
     //CreateChildren
@@ -208,6 +208,7 @@ void Search::Decode(
   }
   std::sort(coarse_q.begin(), coarse_q.end(), vecComp);
 
+/*
   for (auto& q : all_queues) {
     auto& e = q.top();
     LOG(info) << q.size();
@@ -218,7 +219,7 @@ void Search::Decode(
     }
     LOG(info) << "---";
   }
-
+*/
   //Now do the refinements;
   int limit = 0;
   int completions = 1;
@@ -229,6 +230,7 @@ void Search::Decode(
     //Get the top element we want to expand. We might want to settle for second best if a queue is empty
     Hypothesis_states * top = nullptr;
     size_t chosen_q = 0;
+    size_t coarse_q_idx = 0;
     for (std::pair<size_t, float> sorted_element : coarse_q) {
       if (!all_queues[sorted_element.first].empty()) {
         top = all_queues[sorted_element.first].top();
@@ -236,26 +238,25 @@ void Search::Decode(
         chosen_q = sorted_element.first;
         break;
       }
+      coarse_q_idx++;
     }
     //We couldn't find a top, break
     if (!top) {
       break;
     }
 
-    if (limit % 1 == 0) {
-      LOG(info) << "On expansion: " << limit;
+    if (limit % 100 == 0) {
+      /*LOG(info) << "On expansion: " << limit;
       LOG(info) << "Chosen Q: " << chosen_q << " out of: " << coarse_q.size();
       LOG(info) << "->size Q: " << all_queues[chosen_q].size();
-      LOG(info) << "score: Q: " << top->accumulatedScore + coarse_q[chosen_q].second;
+      LOG(info) << "score: Q: " << top->accumulatedScore + coarse_q[coarse_q_idx].second;
 
-      //std::sort(coarse_q.begin(), coarse_q.end(), vecQueueSort);
       for (int i = 0; i<coarse_q.size(); i++) {
         if (!all_queues[coarse_q[i].first].empty()) {
           std::cout << "Q " << coarse_q[i].first << " score: " << coarse_q[i].second + all_queues[coarse_q[i].first].top()->accumulatedScore << " ";
         }
         std::cout << std::endl;
-      }
-      //std::sort(coarse_q.begin(), coarse_q.end(), vecComp);
+      }*/
     }
 
     //Add next sibling to the priority_queue
@@ -338,10 +339,10 @@ void Search::Decode(
       future_scores.push_back(beams[0][0]->GetCost() - beams[0][0]->GetPrevHyp()->GetCost());
       futurescoreUpdated = true;
     } else if (future_scores[chosen_q + 1] < (beams[0][0]->GetCost() - beams[0][0]->GetPrevHyp()->GetCost())){
-      LOG(info) << "Future score update: Before: " << future_scores[chosen_q + 1];
+      //LOG(info) << "Future score update: Before: " << future_scores[chosen_q + 1];
       future_scores[chosen_q + 1] = (beams[0][0]->GetCost() - beams[0][0]->GetPrevHyp()->GetCost());
       //Updated future score:
-      LOG(info) << "Future score update: After: " << future_scores[chosen_q + 1];
+      //LOG(info) << "Future score update: After: " << future_scores[chosen_q + 1];
       futurescoreUpdated = true;
     }
 
