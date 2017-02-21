@@ -84,7 +84,15 @@ void Search::Decode(
   // The vector 'coarse_q' holds indices to all_queues in a sorted PQ order, sorted using vecComp, and the approximated rest scores        .
   // vecComp: takes indices (word positions) left and right and finds which priority queue has higher top score.
   auto vecComp = [&all_queues](const std::pair<size_t, float>& left, const std::pair<size_t, float>& right) -> bool
-    {return all_queues[left.first].top()->accumulatedScore + left.second > all_queues[right.first].top()->accumulatedScore + right.second;};
+    { float leftscore = -999;
+      float rightscore = -999;
+      if (!all_queues[left.first].empty()) {
+        leftscore = all_queues[left.first].top()->accumulatedScore + left.second;
+      }
+      if (!all_queues[right.first].empty()) {
+        rightscore = all_queues[right.first].top()->accumulatedScore + right.second;
+      }
+      return leftscore > rightscore;};
 
   // We also want a normal vector sort in the order of the queues so that we can easily update it
   auto vecQueueSort = [](const std::pair<size_t, float>& left, const std::pair<size_t, float>& right) -> bool
