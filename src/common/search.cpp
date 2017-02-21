@@ -246,6 +246,7 @@ void Search::Decode(
       completions++;
       //Check if it's better than the current one
       float normalisedScore = top->accumulatedScore/(top->parent->word_idx + 1);
+      LOG(info) << "New completion found: Raw score: " << top->accumulatedScore << " num words: " << top->parent->word_idx + 1;
       LOG(info) << "New completion found: score: " << normalisedScore << " Previous best: " << topScore;
       if (normalisedScore > topScore) {
         topScore = normalisedScore;
