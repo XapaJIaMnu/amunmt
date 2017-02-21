@@ -223,7 +223,7 @@ void Search::Decode(
   int limit = 0;
   int completions = 1;
   int refinements = 0;
-  while (limit < 500) {
+  while (limit < 5000) {
     limit++;
 
     //Get the top element we want to expand. We might want to settle for second best if a queue is empty
@@ -240,6 +240,22 @@ void Search::Decode(
     //We couldn't find a top, break
     if (!top) {
       break;
+    }
+
+    if (limit % 1 == 0) {
+      LOG(info) << "On expansion: " << limit;
+      LOG(info) << "Chosen Q: " << chosen_q << " out of: " << coarse_q.size();
+      LOG(info) << "->size Q: " << all_queues[chosen_q].size();
+      LOG(info) << "score: Q: " << top->accumulatedScore + coarse_q[chosen_q].second;
+
+      //std::sort(coarse_q.begin(), coarse_q.end(), vecQueueSort);
+      for (int i = 0; i<coarse_q.size(); i++) {
+        if (!all_queues[coarse_q[i].first].empty()) {
+          std::cout << "Q " << coarse_q[i].first << " score: " << coarse_q[i].second + all_queues[coarse_q[i].first].top()->accumulatedScore << " ";
+        }
+        std::cout << std::endl;
+      }
+      //std::sort(coarse_q.begin(), coarse_q.end(), vecComp);
     }
 
     //Add next sibling to the priority_queue
