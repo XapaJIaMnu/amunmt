@@ -17,6 +17,8 @@ class Hypothesis_states {
         float accumulatedScore;
 
         Hypothesis_states(HypothesisPtr, StatePtr, float);
+
+        std::string GetHypoWords(const God &god);
 };
 
 bool operator< (const Hypothesis_states &left, const Hypothesis_states &right) {
@@ -31,6 +33,16 @@ Hypothesis_states::Hypothesis_states(HypothesisPtr current, StatePtr currentStat
     cur_hypo(current),
     cur_rnn_state(currentState),
     accumulatedScore(accumscore) {}
+
+std::string Hypothesis_states::GetHypoWords(const God &god) {
+  std::string out = "";
+  HypothesisPtr hyp = cur_hypo;
+  while (hyp != nullptr) {
+    out = god.GetTargetVocab()[hyp->GetWord()] + " " + out;
+    hyp = hyp->GetPrevHyp();
+  }
+  return out;
+}
 
 class exploredItem {
     public:

@@ -248,6 +248,7 @@ void Search::Decode(
       float normalisedScore = top->accumulatedScore/(top->parent->word_idx + 1);
       LOG(info) << "New completion found: Raw score: " << top->accumulatedScore << " num words: " << top->parent->word_idx + 1;
       LOG(info) << "New completion found: score: " << normalisedScore << " Previous best: " << topScore;
+      LOG(info) << "--> " << top->GetHypoWords(god);
       if (normalisedScore > topScore) {
         topScore = normalisedScore;
         topHypo = top->cur_hypo;
