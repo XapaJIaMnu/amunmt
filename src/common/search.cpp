@@ -86,11 +86,12 @@ void Search::Decode(
   auto vecComp = [&all_queues](const std::pair<size_t, float>& left, const std::pair<size_t, float>& right) -> bool
     { float leftscore = -999;
       float rightscore = -999;
+      float penalty = 1; //Some sort of penalization, that will make the model prefer expansions to the right.
       if (!all_queues[left.first].empty()) {
-        leftscore = all_queues[left.first].top()->accumulatedScore + left.second;
+        leftscore = all_queues[left.first].top()->accumulatedScore + left.second + all_queues[left.first].top()->parent->word_idx*penalty;
       }
       if (!all_queues[right.first].empty()) {
-        rightscore = all_queues[right.first].top()->accumulatedScore + right.second;
+        rightscore = all_queues[right.first].top()->accumulatedScore + right.second + all_queues[right.first].top()->parent->word_idx*penalty;
       }
       return leftscore > rightscore;};
 
