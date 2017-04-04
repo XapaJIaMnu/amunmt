@@ -66,6 +66,20 @@ Loader *LoaderFactory::CreateGPU(
 
   return NULL;
 }
+#else
+/* If CUDA is not defined the compiler still needs to be able
+ * to reach the CreateGPU function, even if that codepath is
+ * never executed. However for some reason gcc5 completely optimizes
+ * out the relevant codepath and gcc6 doesn't optimize it only
+ * in the debug configuration
+ */
+Loader *LoaderFactory::CreateGPU(
+    const God &god,
+    const std::string& name,
+    const YAML::Node& config) {
+    return NULL;
+}
+
 #endif
 
 
