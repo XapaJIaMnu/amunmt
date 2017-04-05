@@ -224,21 +224,33 @@ void Search::Decode(
   int limit = 0;
   int completions = 1;
   int refinements = 0;
-  while (limit < 5000) {
+  bool completion = true;
+
+  LOG(info) << "Best first top score is: " << topScore;
+
+  Hypothesis_states * best1 = nullptr;
+  Hypothesis_states * top_printing = nullptr;
+  while (limit < 100) {
     limit++;
 
     //Get the top element we want to expand. We might want to settle for second best if a queue is empty
     Hypothesis_states * top = nullptr;
     size_t chosen_q = 0;
     size_t coarse_q_idx = 0;
-    for (std::pair<size_t, float> sorted_element : coarse_q) {
-      if (!all_queues[sorted_element.first].empty()) {
-        top = all_queues[sorted_element.first].top();
-        all_queues[sorted_element.first].pop();
-        chosen_q = sorted_element.first;
-        break;
+    if (completion) {
+      for (std::pair<size_t, float> sorted_element : coarse_q) {
+        if (!all_queues[sorted_element.first].empty()) {
+          top = all_queues[sorted_element.first].top();
+          all_queues[sorted_element.first].pop();
+          chosen_q = sorted_element.first;
+          break;
+        }
+        coarse_q_idx++;
       }
-      coarse_q_idx++;
+      completion = false;
+    } else {
+      top = best1;
+      chosen_q = best1->parent->word_idx;// not correct + 1;
     }
     //We couldn't find a top, break
     if (!top) {
@@ -268,6 +280,7 @@ void Search::Decode(
     
     //If we reach an end of sentence we don't want to expand
     if (top->cur_hypo->GetWord() == EOS) {
+      completion = true;
       completions++;
       //Check if it's better than the current one
       float normalisedScore = top->accumulatedScore/(top->parent->word_idx + 1);
@@ -277,6 +290,7 @@ void Search::Decode(
       if (normalisedScore > topScore) {
         topScore = normalisedScore;
         topHypo = top->cur_hypo;
+        top_printing = top;
         refinements++;
       }
       continue;
@@ -319,6 +333,7 @@ void Search::Decode(
     for (Hypothesis_states * hypostate : children) {
       hypostate->parent = expl;
     }
+    best1 = children[0];
 
     //Put in the appropriate queue
     if (all_queues.size() <= chosen_q + 1) {
@@ -362,6 +377,10 @@ void Search::Decode(
 
   }
   LOG(info) << "Top scoring hypothesis' score: " << topScore;
+  LOG(info) << "Top scoring hypothesis:";
+  if (refinements != 0) {
+    LOG(info) << "--> " << top_printing->GetHypoWords(god);
+  }
   LOG(info) << "Completions: " << completions;
   LOG(info) << "Refinements: " << refinements;
 
