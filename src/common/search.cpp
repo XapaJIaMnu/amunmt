@@ -7,6 +7,7 @@
 #include "common/filter.h"
 #include "common/base_matrix.h"
 #include "common/util/file_stream.hh"
+#include "cpu/decoder/encoder_decoder.h"
 
 using namespace std;
 
@@ -71,6 +72,18 @@ std::string Search::GetStringFromHypo(HypothesisPtr hypo) {
   return out;
 }
 
+std::string Search::GetStringsFromStates(State& state) {
+  std::string out = "";
+  auto& stateMatrix = state.get<CPU::EncoderDecoderState>().GetStates();
+  for (size_t i = 0; i < stateMatrix.rows(); i++) {
+    for (size_t j = 0; j < stateMatrix.columns(); j++) {
+      out += std::to_string(stateMatrix(i,j)) + " ";
+    }
+    out += '\n';
+  }
+  return out;
+}
+
 void Search::Decode(
 		const God &god,
 		const Sentences& sentences,
@@ -102,6 +115,7 @@ void Search::Decode(
   for (size_t decoderStep = 0; decoderStep < 3 * sentences.GetMaxLength(); ++decoderStep) {
     LOG(info) << "Decoding " << decoderStep << ", have " << prevHyps.size() << " hypotheses";
 
+    // Dropping the hypotheses themselves
     for (size_t h = 0; h < prevHyps.size(); h++) {
       hyposFile << GetStringFromHypo(prevHyps[h]) << '\n';
     }
@@ -114,6 +128,9 @@ void Search::Decode(
       scorer.Decode(god, state, nextState, beamSizes);
       // after this step, the nextState is populated
     }
+
+    // Dropping the states
+    statesFile << GetStringsFromStates(*nextStates[0]);
 
     if (decoderStep == 0) {
       for (auto& beamSize : beamSizes) {

@@ -52,6 +52,7 @@ class Search {
     DeviceInfo deviceInfo_;
     
     std::string GetStringFromHypo(HypothesisPtr hypo);
+    std::string GetStringsFromStates(State& state);
 };
 
 }
