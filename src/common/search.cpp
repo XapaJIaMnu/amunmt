@@ -93,14 +93,14 @@ void Search::Decode(
     float probsumz = 0;
     for (size_t i = 0; i < beams[0].size(); i++) {
       probsumz += exp(beams[0][i]->GetCost());
-      LOG(progress) << "Beam: " << i << " score: " << exp(beams[0][i]->GetCost());
+      //LOG(progress) << "Beam: " << i << " score: " << exp(beams[0][i]->GetCost());
     }
     float threshold = 0;
     int uniq = 0;
     for (size_t i = 0; i < beams[0].size(); i++) {
       threshold += exp(beams[0][i]->GetCost());
-      LOG(progress) << "Threshold: " << threshold/probsumz;
-      if (threshold/probsumz > 0.9 && i != 0) {
+      //LOG(progress) << "Threshold: " << threshold/probsumz;
+      if (threshold/probsumz > 0.98 && i != 0) {
         //beams[0][i] = beams[0][i - 1];
         beams[0].resize(i+1);
         break;
@@ -108,7 +108,7 @@ void Search::Decode(
         uniq++;
       }
     }
-    LOG(progress) << "Actual beam size: " << uniq << " captures " << threshold << " of the full probability.";
+    //LOG(progress) << "Actual beam size: " << uniq << " captures " << threshold << " of the full probability.";
 
     for (size_t i = 0; i < batchSize; ++i) {
       if (!beams[i].empty()) {
