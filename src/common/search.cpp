@@ -102,17 +102,20 @@ void Search::Decode(
   // Create the files to drop the states
   util::scoped_fd fd1;
   util::FileStream hyposFile;
-  fd1.reset(util::CreateOrThrow("dropStates/hypotheses.txt"));
+  const auto filename1 = "dropStates/hypotheses_" + std::to_string(sentences.at(0)->GetLineNum()) + ".txt";
+  fd1.reset(util::CreateOrThrow(filename1.data()));
   hyposFile.SetFD(fd1.get());
 
   util::scoped_fd fd2;
   util::FileStream statesFile;
-  fd2.reset(util::CreateOrThrow("dropStates/states.txt"));
+  const auto filename2 = "dropStates/states_" + std::to_string(sentences.at(0)->GetLineNum()) + ".txt";
+  fd2.reset(util::CreateOrThrow(filename2.data()));
   statesFile.SetFD(fd2.get());
 
   util::scoped_fd fd3;
   util::FileStream finishedFile;
-  fd3.reset(util::CreateOrThrow("dropStates/finished.txt"));
+  const auto filename3 = "dropStates/finished_" + std::to_string(sentences.at(0)->GetLineNum()) + ".txt";
+  fd3.reset(util::CreateOrThrow(filename3.data()));
   finishedFile.SetFD(fd3.get());
 
   for (size_t decoderStep = 0; decoderStep < 3 * sentences.GetMaxLength(); ++decoderStep) {
