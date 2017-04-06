@@ -67,7 +67,10 @@ std::string Search::GetStringFromHypo(HypothesisPtr hypo) {
   }
   std::string out = "";
   for (size_t i = words.size(); i > 0; i--) {
-    out += words[i-1] + ",";
+    out += words[i-1];
+    if (i > 1) {
+      out += ",";
+    }
   }
   return out;
 }
@@ -155,6 +158,9 @@ void Search::Decode(
           survivors.push_back(h);
         } else {
           --beamSizes[batchID];
+
+          // Print the finished sentence
+          finishedFile << GetStringFromHypo(h) << " ||| " << h->GetCost() << '\n';
         }
       }
     }
