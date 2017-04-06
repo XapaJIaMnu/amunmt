@@ -116,7 +116,6 @@ void Search::Decode(
   finishedFile.SetFD(fd3.get());
 
   for (size_t decoderStep = 0; decoderStep < 3 * sentences.GetMaxLength(); ++decoderStep) {
-    LOG(info) << "Decoding " << decoderStep << ", have " << prevHyps.size() << " hypotheses";
 
     // Dropping the hypotheses themselves
     for (size_t h = 0; h < prevHyps.size(); h++) {
