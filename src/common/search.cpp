@@ -159,7 +159,7 @@ void Search::Decode(
           --beamSizes[batchID];
 
           // Print the finished sentence
-          finishedFile << GetStringFromHypo(h) << " ||| " << h->GetCost() << '\n';
+          finishedFile << GetStringFromHypo(h) << " ||| " << h->GetCost()/(decoderStep+1) << '\n';
         }
       }
     }
