@@ -37,6 +37,18 @@ add_library(libcommon OBJECT
   common/utils.cpp
   common/vocab.cpp
   common/translation_task.cpp
+  common/util/file.cc
+  common/util/float_to_string.cc
+  common/util/integer_to_string.cc
+  common/util/scoped.cc
+  common/util/double-conversion/bignum.cc
+  common/util/double-conversion/bignum-dtoa.cc
+  common/util/double-conversion/cached-powers.cc
+  common/util/double-conversion/diy-fp.cc
+  common/util/double-conversion/double-conversion.cc
+  common/util/double-conversion/fast-dtoa.cc
+  common/util/double-conversion/fixed-dtoa.cc
+  common/util/double-conversion/strtod.cc
 )
 
 if(CUDA_FOUND)
