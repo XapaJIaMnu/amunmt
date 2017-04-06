@@ -50,6 +50,8 @@ class Search {
     BestHypsBasePtr bestHyps_;
 
     DeviceInfo deviceInfo_;
+    
+    std::string GetStringFromHypo(HypothesisPtr hypo);
 };
 
 }

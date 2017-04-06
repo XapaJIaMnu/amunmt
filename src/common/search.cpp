@@ -6,6 +6,7 @@
 #include "common/history.h"
 #include "common/filter.h"
 #include "common/base_matrix.h"
+#include "common/util/file_stream.hh"
 
 using namespace std;
 
@@ -57,6 +58,19 @@ void Search::Encode(const Sentences& sentences, States& states) {
   }
 }
 
+std::string Search::GetStringFromHypo(HypothesisPtr hypo) {
+  std::vector<std::string> words;
+  while (hypo) {
+    words.push_back(std::to_string(hypo->GetWord()));
+    hypo = hypo->GetPrevHyp();
+  }
+  std::string out = "";
+  for (size_t i = words.size(); i > 0; i--) {
+    out += words[i-1] + ",";
+  }
+  return out;
+}
+
 void Search::Decode(
 		const God &god,
 		const Sentences& sentences,
@@ -69,13 +83,36 @@ void Search::Decode(
 
   std::vector<size_t> beamSizes(batchSize, 1);
 
+  // Create the files to drop the states
+  util::scoped_fd fd1;
+  util::FileStream hyposFile;
+  fd1.reset(util::CreateOrThrow("dropStates/hypotheses.txt"));
+  hyposFile.SetFD(fd1.get());
+
+  util::scoped_fd fd2;
+  util::FileStream statesFile;
+  fd2.reset(util::CreateOrThrow("dropStates/states.txt"));
+  statesFile.SetFD(fd2.get());
+
+  util::scoped_fd fd3;
+  util::FileStream finishedFile;
+  fd3.reset(util::CreateOrThrow("dropStates/finished.txt"));
+  finishedFile.SetFD(fd3.get());
+
   for (size_t decoderStep = 0; decoderStep < 3 * sentences.GetMaxLength(); ++decoderStep) {
+    LOG(info) << "Decoding " << decoderStep << ", have " << prevHyps.size() << " hypotheses";
+
+    for (size_t h = 0; h < prevHyps.size(); h++) {
+      hyposFile << GetStringFromHypo(prevHyps[h]) << '\n';
+    }
+
     for (size_t i = 0; i < scorers_.size(); i++) {
       Scorer &scorer = *scorers_[i];
       const State &state = *states[i];
       State &nextState = *nextStates[i];
 
       scorer.Decode(god, state, nextState, beamSizes);
+      // after this step, the nextState is populated
     }
 
     if (decoderStep == 0) {
