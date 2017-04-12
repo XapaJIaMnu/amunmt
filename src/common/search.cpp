@@ -100,7 +100,7 @@ void Search::Decode(
     for (size_t i = 0; i < beams[0].size(); i++) {
       threshold += exp(beams[0][i]->GetCost());
       //LOG(progress) << "Threshold: " << threshold/probsumz;
-      if (threshold/probsumz > 0.98 && i != 0) {
+      if (threshold/probsumz > 0.90 && i != 0) {
         //beams[0][i] = beams[0][i - 1];
         beams[0].resize(i+1);
         break;
