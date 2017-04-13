@@ -70,6 +70,14 @@ void EncoderDecoder::Decode(const God &god, const State& in, State& out, const s
                      edIn.GetEmbeddings(), SourceContext_);
 }
 
+void EncoderDecoder::Decode_States(const God &god, const State& in, State& out, const std::vector<size_t>&, mblas::Matrix& preOutputStates) {
+  const EDState& edIn = in.get<EDState>();
+  EDState& edOut = out.get<EDState>();
+
+  decoder_->Decode_States(edOut.GetStates(), edIn.GetStates(),
+                     edIn.GetEmbeddings(), SourceContext_, preOutputStates);
+}
+
 State* EncoderDecoder::NewState() const {
   return new EDState();
 }

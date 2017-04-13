@@ -230,6 +230,18 @@ class Decoder {
       GetNextState(NextState, HiddenState_, AlignedSourceContext_);
       GetProbs(NextState, Embeddings, AlignedSourceContext_);
     }
+    
+    void Decode_States(mblas::Matrix& NextState,
+                  const mblas::Matrix& State,
+                  const mblas::Matrix& Embeddings,
+                  const mblas::Matrix& SourceContext,
+                  mblas::Matrix& preOutputStates
+                      ) {
+      GetHiddenState(HiddenState_, State, Embeddings);
+      GetAlignedSourceContext(AlignedSourceContext_, HiddenState_, SourceContext);
+      GetNextState(NextState, HiddenState_, AlignedSourceContext_);
+      GetProbs(NextState, Embeddings, AlignedSourceContext_);
+    }
 
     BaseMatrix& GetProbs() {
       return Probs_;

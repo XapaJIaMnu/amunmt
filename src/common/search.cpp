@@ -8,6 +8,7 @@
 #include "common/base_matrix.h"
 #include "common/util/file_stream.hh"
 #include "cpu/decoder/encoder_decoder.h"
+#include "cpu/mblas/matrix.h"
 
 using namespace std;
 
@@ -125,12 +126,13 @@ void Search::Decode(
       hyposFile << GetStringFromHypo(prevHyps[h]) << '\n';
     }
 
+    CPU::mblas::Matrix preOutputStates;
     for (size_t i = 0; i < scorers_.size(); i++) {
       Scorer &scorer = *scorers_[i];
       const State &state = *states[i];
       State &nextState = *nextStates[i];
 
-      scorer.Decode(god, state, nextState, beamSizes);
+      scorer.Decode_States(god, state, nextState, beamSizes, preOutputStates);
       // after this step, the nextState is populated
     }
 
