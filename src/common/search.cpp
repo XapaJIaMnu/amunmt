@@ -83,7 +83,31 @@ std::string Search::GetStringsFromStates(State& state) {
     for (size_t j = 0; j < stateMatrix.columns(); j++) {
       out += std::to_string(stateMatrix(i,j)) + " ";
     }
-    out += '\n';
+  }
+  return out;
+}
+
+std::string Search::GetStringsFromStates_presoftmax(std::vector<CPU::mblas::Matrix>& state_matrices, std::vector<size_t>& positions, std::vector<std::string>& prevHypsStr) {
+  CPU::mblas::Matrix& T = state_matrices[0];
+  CPU::mblas::Matrix& W4 = state_matrices[1];
+  std::string out = "";
+  //This is definitely wrong. We take all the beams, but we only dump the states for the words that are chosen by beam search
+  //(which is fine because those are the ones that we have any chance to know their future score)
+  //however we must then know which beams were chosen so we can do the calculation on them, which is additional information
+  //that must go into this function. We must only ever get beamSize sized hypos to dump
+  //@TODO go into CalcBeam and fix that
+  for (size_t beamID = 0; beamID < T.rows(); beamID++) {
+    for (size_t j = 0; j < positions.size(); j++) {
+      size_t wordID = positions[j];
+      out += prevHypsStr[j] + " ||| ";
+      for (size_t i = 0; i < W4.rows(); i++) {
+        out += std::to_string(W4(i,wordID)) + " ";
+      }
+      for (size_t i = 0; i < T.columns(); i++) {
+        out += std::to_string(T(beamID,i)) + " ";
+      }
+      out += '\n';
+    }
   }
   return out;
 }
@@ -101,12 +125,6 @@ void Search::Decode(
   std::vector<size_t> beamSizes(batchSize, 1);
 
   // Create the files to drop the states
-  util::scoped_fd fd1;
-  util::FileStream hyposFile;
-  const auto filename1 = "dropStates/hypotheses_" + std::to_string(sentences.at(0)->GetLineNum()) + ".txt";
-  fd1.reset(util::CreateOrThrow(filename1.data()));
-  hyposFile.SetFD(fd1.get());
-
   util::scoped_fd fd2;
   util::FileStream statesFile;
   const auto filename2 = "dropStates/states_" + std::to_string(sentences.at(0)->GetLineNum()) + ".txt";
@@ -121,18 +139,15 @@ void Search::Decode(
 
   for (size_t decoderStep = 0; decoderStep < 3 * sentences.GetMaxLength(); ++decoderStep) {
 
-    // Dropping the hypotheses themselves
-    for (size_t h = 0; h < prevHyps.size(); h++) {
-      hyposFile << GetStringFromHypo(prevHyps[h]) << '\n';
-    }
-
+    //This gives up a copy of the matrices before they multiplied to get the output layer
+    //the goal is to pair concatinate them together for the chosen vocabulary items
+    //and use that as a NN input for training a regression model.
     std::vector<std::vector<CPU::mblas::Matrix> > preOutputStates(scorers_.size());
     for (size_t i = 0; i < scorers_.size(); i++) {
       Scorer &scorer = *scorers_[i];
       const State &state = *states[i];
       State &nextState = *nextStates[i];
 
-      //scorer.Decode(god, state, nextState, beamSizes);
       scorer.Decode_States(god, state, nextState, beamSizes, preOutputStates[i]);
       // after this step, the nextState is populated
     }
@@ -140,8 +155,6 @@ void Search::Decode(
     std::cout << "T rows: " << preOutputStates[0][0].rows() << " T cols: " << preOutputStates[0][0].columns() << std::endl;
     std::cout << "W4 rows: " << preOutputStates[0][1].rows() << " W4 cols: " << preOutputStates[0][1].columns() << std::endl;
 
-    // Dropping the states
-    statesFile << GetStringsFromStates(*nextStates[0]);
 
     if (decoderStep == 0) {
       for (auto& beamSize : beamSizes) {
@@ -152,6 +165,23 @@ void Search::Decode(
     bool returnAlignment = god.Get<bool>("return-alignment");
 
     bestHyps_->CalcBeam(god, prevHyps, scorers_, filterIndices_, returnAlignment, beams, beamSizes);
+
+    //now we have updated beams, which show based on the softmax scores of all beams, what was chosen.
+    //as in, what would go in the next step to the neural network. We pair those scores and states with 
+    //what we have dumped so far and we can use it as training data to avoid doing beam search.
+    std::vector<size_t> chosen_vocabIDs(beams[0].size());
+    for (size_t i = 0; i < beams[0].size(); i++) {
+      chosen_vocabIDs[i] = beams[0][i]->GetWord();
+    }
+
+    // Get the hypothesis so far
+    std::vector<std::string> prevHypsStr;
+    for (size_t h = 0; h < beams[0].size(); h++) {
+      prevHypsStr.push_back(GetStringFromHypo(beams[0][h]));
+    }
+
+    //Drop states
+    statesFile << GetStringsFromStates_presoftmax(preOutputStates[0], chosen_vocabIDs, prevHypsStr);
 
     for (size_t i = 0; i < batchSize; ++i) {
       if (!beams[i].empty()) {
