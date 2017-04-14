@@ -56,7 +56,7 @@ class EncoderDecoder : public Scorer {
 
     virtual void Decode(const God &god, const State& in, State& out, const std::vector<size_t>& beamSizes);
     
-    virtual void Decode_States(const God &god, const State& in, State& out, const std::vector<size_t>& beamSizes, mblas::Matrix& preOutputStates);
+    virtual void Decode_States(const God &god, const State& in, State& out, const std::vector<size_t>& beamSizes, std::vector<mblas::Matrix>& preOutputStates);
 
     virtual State* NewState() const;
 

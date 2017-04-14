@@ -126,15 +126,19 @@ void Search::Decode(
       hyposFile << GetStringFromHypo(prevHyps[h]) << '\n';
     }
 
-    CPU::mblas::Matrix preOutputStates;
+    std::vector<std::vector<CPU::mblas::Matrix> > preOutputStates(scorers_.size());
     for (size_t i = 0; i < scorers_.size(); i++) {
       Scorer &scorer = *scorers_[i];
       const State &state = *states[i];
       State &nextState = *nextStates[i];
 
-      scorer.Decode_States(god, state, nextState, beamSizes, preOutputStates);
+      //scorer.Decode(god, state, nextState, beamSizes);
+      scorer.Decode_States(god, state, nextState, beamSizes, preOutputStates[i]);
       // after this step, the nextState is populated
     }
+
+    std::cout << "T rows: " << preOutputStates[0][0].rows() << " T cols: " << preOutputStates[0][0].columns() << std::endl;
+    std::cout << "W4 rows: " << preOutputStates[0][1].rows() << " W4 cols: " << preOutputStates[0][1].columns() << std::endl;
 
     // Dropping the states
     statesFile << GetStringsFromStates(*nextStates[0]);

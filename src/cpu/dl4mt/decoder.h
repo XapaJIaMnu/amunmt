@@ -165,6 +165,38 @@ class Decoder {
         filtered_(false)
         {}
 
+        void GetProbs_States(mblas::ArrayMatrix& Probs,
+                  const mblas::Matrix& State,
+                  const mblas::Matrix& Embedding,
+                  const mblas::Matrix& AlignedSourceContext,
+                  std::vector<mblas::Matrix>& preOutputStates
+                            ) {
+          using namespace mblas;
+
+          T1_ = State * w_.W1_;
+          T2_ = Embedding * w_.W2_;
+          T3_ = AlignedSourceContext * w_.W3_;
+
+          AddBiasVector<byRow>(T1_, w_.B1_);
+          AddBiasVector<byRow>(T2_, w_.B2_);
+          AddBiasVector<byRow>(T3_, w_.B3_);
+
+          auto t = blaze::forEach(T1_ + T2_ + T3_, Tanh());
+
+          preOutputStates.push_back(t);
+          preOutputStates.push_back(w_.W4_);
+
+          if(!filtered_) {
+            Probs_ = t * w_.W4_;
+            AddBiasVector<byRow>(Probs_, w_.B4_);
+          } else {
+            Probs_ = t * FilteredW4_;
+            AddBiasVector<byRow>(Probs_, FilteredB4_);
+          }
+          mblas::Softmax(Probs_);
+          Probs = blaze::forEach(Probs_, Log());
+        }
+        
         void GetProbs(mblas::ArrayMatrix& Probs,
                   const mblas::Matrix& State,
                   const mblas::Matrix& Embedding,
@@ -235,12 +267,13 @@ class Decoder {
                   const mblas::Matrix& State,
                   const mblas::Matrix& Embeddings,
                   const mblas::Matrix& SourceContext,
-                  mblas::Matrix& preOutputStates
+                  std::vector<mblas::Matrix>& preOutputStates
                       ) {
       GetHiddenState(HiddenState_, State, Embeddings);
       GetAlignedSourceContext(AlignedSourceContext_, HiddenState_, SourceContext);
       GetNextState(NextState, HiddenState_, AlignedSourceContext_);
-      GetProbs(NextState, Embeddings, AlignedSourceContext_);
+      //GetProbs(NextState, Embeddings, AlignedSourceContext_);
+      softmax_.GetProbs_States(Probs_, NextState, Embeddings, AlignedSourceContext_, preOutputStates);
     }
 
     BaseMatrix& GetProbs() {
