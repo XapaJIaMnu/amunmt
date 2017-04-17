@@ -9,6 +9,7 @@
 #include "common/util/file_stream.hh"
 #include "cpu/decoder/encoder_decoder.h"
 #include "cpu/mblas/matrix.h"
+#include "cpu/decoder/best_hyps.h"
 
 using namespace std;
 
@@ -87,28 +88,29 @@ std::string Search::GetStringsFromStates(State& state) {
   return out;
 }
 
-std::string Search::GetStringsFromStates_presoftmax(std::vector<CPU::mblas::Matrix>& state_matrices, std::vector<size_t>& positions, std::vector<std::string>& prevHypsStr) {
+std::string Search::GetStringsFromStates_presoftmax(std::vector<CPU::mblas::Matrix>& state_matrices, std::vector<std::pair<size_t, size_t> >& positions,
+ std::vector<std::string>& prevHypsStr) {
   CPU::mblas::Matrix& T = state_matrices[0];
   CPU::mblas::Matrix& W4 = state_matrices[1];
   std::string out = "";
-  //This is definitely wrong. We take all the beams, but we only dump the states for the words that are chosen by beam search
-  //(which is fine because those are the ones that we have any chance to know their future score)
-  //however we must then know which beams were chosen so we can do the calculation on them, which is additional information
-  //that must go into this function. We must only ever get beamSize sized hypos to dump
-  //@TODO go into CalcBeam and fix that
-  for (size_t beamID = 0; beamID < T.rows(); beamID++) {
-    for (size_t j = 0; j < positions.size(); j++) {
-      size_t wordID = positions[j];
-      out += prevHypsStr[j] + " ||| ";
-      for (size_t i = 0; i < W4.rows(); i++) {
-        out += std::to_string(W4(i,wordID)) + " ";
-      }
-      for (size_t i = 0; i < T.columns(); i++) {
-        out += std::to_string(T(beamID,i)) + " ";
-      }
-      out += '\n';
+  
+  //What we do here is concatinate the decoder state before going to the output layer (T) with the output layer weights (W4) at the positions
+  //at the rows of T corresponding to the chosen beams according to positions and at the cols of W4 corresponding to the chosen words for those
+  //beams.
+
+  for (size_t pos = 0; pos < positions.size(); pos++) {
+    size_t beamIDX = positions[pos].first;
+    size_t wordIDX = positions[pos].second;
+    out += prevHypsStr[pos] + " ||| ";
+    for (size_t i = 0; i < W4.rows(); i++) {
+      out += std::to_string(W4(i,wordIDX)) + " ";
     }
+    for (size_t i = 0; i < T.columns(); i++) {
+      out += std::to_string(T(beamIDX,i)) + " ";
+    }
+    out += '\n';
   }
+
   return out;
 }
 
@@ -165,13 +167,15 @@ void Search::Decode(
     bool returnAlignment = god.Get<bool>("return-alignment");
 
     bestHyps_->CalcBeam(god, prevHyps, scorers_, filterIndices_, returnAlignment, beams, beamSizes);
+    amunmt::CPU::BestHyps* bestHyps_cpu = static_cast<amunmt::CPU::BestHyps*>(bestHyps_.get()); //GRR ABSTRACTION
 
-    //now we have updated beams, which show based on the softmax scores of all beams, what was chosen.
-    //as in, what would go in the next step to the neural network. We pair those scores and states with 
-    //what we have dumped so far and we can use it as training data to avoid doing beam search.
-    std::vector<size_t> chosen_vocabIDs(beams[0].size());
-    for (size_t i = 0; i < beams[0].size(); i++) {
-      chosen_vocabIDs[i] = beams[0][i]->GetWord();
+    //The same calculations are done in CalcBeam. What we do here is we identify what score corresponds to which
+    //Beam/vocab item. We use that later to identify which states to dump.
+    std::vector<std::pair<size_t, size_t> > beam_and_wordIDXs;
+    for (size_t i = 0; i < bestHyps_cpu->bestKeys_.size(); i++) {
+      size_t beamIDX = bestHyps_cpu->bestKeys_[i] / bestHyps_cpu->probs_cols;
+      size_t wordIDX = bestHyps_cpu->bestKeys_[i] % bestHyps_cpu->probs_cols;
+      beam_and_wordIDXs.push_back(std::pair<size_t, size_t>(beamIDX, wordIDX));
     }
 
     // Get the hypothesis so far
@@ -181,7 +185,7 @@ void Search::Decode(
     }
 
     //Drop states
-    statesFile << GetStringsFromStates_presoftmax(preOutputStates[0], chosen_vocabIDs, prevHypsStr);
+    statesFile << GetStringsFromStates_presoftmax(preOutputStates[0], beam_and_wordIDXs, prevHypsStr);
 
     for (size_t i = 0; i < batchSize; ++i) {
       if (!beams[i].empty()) {

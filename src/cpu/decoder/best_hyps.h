@@ -24,6 +24,9 @@ struct ProbCompare {
 class BestHyps : public BestHypsBase
 {
 public:
+  std::vector<size_t> bestKeys_;
+  size_t probs_cols;
+  size_t probs_rows;
   void CalcBeam(
       const God &god,
       const Beam& prevHyps,
@@ -76,6 +79,9 @@ public:
       bestKeys[i] = keys[i];
       bestCosts[i] = Probs.data()[keys[i]];
     }
+    bestKeys_ = bestKeys;
+    probs_cols = Probs.columns();
+    probs_rows = Probs.rows();
 
     std::vector<std::vector<float>> breakDowns;
     bool doBreakdown = god.Get<bool>("n-best");

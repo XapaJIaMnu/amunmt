@@ -53,7 +53,7 @@ class Search {
     
     std::string GetStringFromHypo(HypothesisPtr hypo);
     std::string GetStringsFromStates(State& state);
-    std::string GetStringsFromStates_presoftmax(std::vector<CPU::mblas::Matrix>& state_matrices, std::vector<size_t>& positions, std::vector<std::string>& prevHypsStr);
+    std::string GetStringsFromStates_presoftmax(std::vector<CPU::mblas::Matrix>& state_matrices, std::vector<std::pair<size_t, size_t> >& positions, std::vector<std::string>& prevHypsStr);
 };
 
 }
