@@ -184,7 +184,7 @@ class Decoder {
           auto t = blaze::forEach(T1_ + T2_ + T3_, Tanh());
 
           preOutputStates.push_back(t);
-          preOutputStates.push_back(w_.W4_);
+          //preOutputStates.push_back(w_.W4_);
 
           if(!filtered_) {
             Probs_ = t * w_.W4_;

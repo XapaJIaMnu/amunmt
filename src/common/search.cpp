@@ -91,7 +91,7 @@ std::string Search::GetStringsFromStates(State& state) {
 std::string Search::GetStringsFromStates_presoftmax(std::vector<CPU::mblas::Matrix>& state_matrices, std::vector<std::pair<size_t, size_t> >& positions,
  std::vector<std::string>& prevHypsStr) {
   CPU::mblas::Matrix& T = state_matrices[0];
-  CPU::mblas::Matrix& W4 = state_matrices[1];
+  //CPU::mblas::Matrix& W4 = state_matrices[1];
   std::string out = "";
   
   //What we do here is concatinate the decoder state before going to the output layer (T) with the output layer weights (W4) at the positions
@@ -102,9 +102,9 @@ std::string Search::GetStringsFromStates_presoftmax(std::vector<CPU::mblas::Matr
     size_t beamIDX = positions[pos].first;
     size_t wordIDX = positions[pos].second;
     out += prevHypsStr[pos] + " ||| ";
-    for (size_t i = 0; i < W4.rows(); i++) {
-      out += std::to_string(W4(i,wordIDX)) + " ";
-    }
+    //for (size_t i = 0; i < W4.rows(); i++) {
+    //  out += std::to_string(W4(i,wordIDX)) + " ";
+    //}
     for (size_t i = 0; i < T.columns(); i++) {
       out += std::to_string(T(beamIDX,i)) + " ";
     }
@@ -153,10 +153,6 @@ void Search::Decode(
       scorer.Decode_States(god, state, nextState, beamSizes, preOutputStates[i]);
       // after this step, the nextState is populated
     }
-
-    std::cout << "T rows: " << preOutputStates[0][0].rows() << " T cols: " << preOutputStates[0][0].columns() << std::endl;
-    std::cout << "W4 rows: " << preOutputStates[0][1].rows() << " W4 cols: " << preOutputStates[0][1].columns() << std::endl;
-
 
     if (decoderStep == 0) {
       for (auto& beamSize : beamSizes) {
