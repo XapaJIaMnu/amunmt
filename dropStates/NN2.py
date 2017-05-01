@@ -109,10 +109,19 @@ def preprocess(filename):
     for line in train_file:
         if line.strip() == "":
             continue
-        score, wordID, vec = line.strip().split(' ||| ')
-        Y.append(score)
-        X_wID.append(wordID)
-        X_vec.append([float(x) for x in vec.strip().split(' ')])
+        scores, wordIDs, vec = line.strip().split(' ||| ')
+        # We could be having multiple scores/wordIDs associated with the same state
+        # We should unpack them and transform them in traditional form
+        split_scores = scores.split(' ')
+        split_wordIDs = wordIDs.split(' ')
+        x_vec = [float(x) for x in vec.strip().split(' ')]
+
+        #Loop over the scores and add datapoints
+        for i in range(len(split_scores)):
+            Y.append(split_scores[i])
+            X_wID.append(split_wordIDs[i])
+            X_vec.append(x_vec)
+
     train_file.close()
     return (numpy.array(X_vec).astype('float32'), numpy.array(X_wID).astype("int32"), numpy.array(Y).astype('float32'))
 
