@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import tensorflow as tf
 import numpy
+import gzip
+import bz2
 from sklearn.model_selection import train_test_split
 from tensorflow.python.client import timeline
 
@@ -102,7 +104,13 @@ def get_dataset_error(data, w1, b1):
 
 def preprocess(filename):
     """Creates the dataset"""
-    train_file = open(filename, 'r')
+    train_file = None
+    if (filename[-3:] == ".gz"):
+        train_file = gzip.open(filename,'rt')
+    elif (filename[-4:] == ".bz2"):
+        train_file = bz2.open(filename, 'rt')
+    else:
+        train_file = open(filename, 'r')
     X_vec = []
     X_wID = []
     Y = []
