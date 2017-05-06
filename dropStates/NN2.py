@@ -6,9 +6,63 @@ import bz2
 from sklearn.model_selection import train_test_split
 from tensorflow.python.client import timeline
 
-def init_weight(shape, name):
+class DataBatcher:
+    """This is a data iterator that reads in the file and provides the decoder with minibatches"""
+    def __init__(self, filename, batch_size):
+        self.batch_size = batch_size
+        self.train_file = None
+        self.fileclosed = False
+        if (filename[-3:] == ".gz"):
+            self.train_file = gzip.open(filename,'rt')
+        elif (filename[-4:] == ".bz2"):
+            self.train_file = bz2.open(filename, 'rt')
+        else:
+            self.train_file = open(filename, 'r')
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        """Feeds the next batch to the neural network"""
+        X_vec = []
+        X_wID = []
+        Y = []
+
+        current_batch_size = 0
+        while current_batch_size < self.batch_size and not self.fileclosed:
+            line = self.train_file.readline()
+            if line == "": # Check if we reached end of file
+                self.train_file.close()
+                self.fileclosed = True
+                break
+            if line.strip() == "":
+                continue
+            scores, wordIDs, vec = line.strip().split(' ||| ')
+            # We could be having multiple scores/wordIDs associated with the same state
+            # We should unpack them and transform them in traditional form
+            split_scores = scores.split(' ')
+            split_wordIDs = wordIDs.split(' ')
+            x_vec = [float(x) for x in vec.strip().split(' ')]
+
+            #Loop over the scores and add datapoints
+            for i in range(len(split_scores)):
+                Y.append(split_scores[i])
+                X_wID.append(split_wordIDs[i])
+                X_vec.append(x_vec)
+            current_batch_size = current_batch_size + 1
+
+        if X_vec != []:
+            return (numpy.array(X_vec).astype('float32'), numpy.array(X_wID).astype("int32"), numpy.array(Y).astype('float32'))
+        else:
+            raise StopIteration
+
+
+def init_weight(shape, name, previous_weight):
     """Initialize a weight matrix"""
-    weight = tf.random_normal(shape, dtype='float32', name=name, stddev=0.1)
+    if previous_weight is not None:
+        return tf.Variable(previous_weight, name=name)
+    else:
+        weight = tf.random_normal(shape, dtype='float32', name=name, stddev=0.1)
     return tf.Variable(weight)
 
 def forwardpass(X, X_ID, w_1, b_1):
@@ -34,7 +88,7 @@ def forwardpass(X, X_ID, w_1, b_1):
     return bias_addition
 
 
-def FFNN_train(data, hidden_layer, vocab):
+def FFNN_train(data, hidden_layer, vocab, w_1_load=None, b_1_load=None):
     """Defines the feed forward neural network"""
     x_size = hidden_layer # Size of the hidden layer input
     y_size = vocab # Vocab size
@@ -45,8 +99,8 @@ def FFNN_train(data, hidden_layer, vocab):
     Y = tf.placeholder("float", name="Y", shape=[None])
 
     # init weights
-    w_1 = init_weight((y_size, x_size), 'w1') # Swapped around because tf.gather() is stupid
-    b_1 = init_weight((y_size, 1), 'b1') # Swapped around because tf.gather() is stupid
+    w_1 = init_weight((y_size, x_size), 'w1', w_1_load) # Swapped around because tf.gather() is stupid
+    b_1 = init_weight((y_size, 1), 'b1', b_1_load) # Swapped around because tf.gather() is stupid
 
     # Forward pass
     y_hat = forwardpass(X, X_ID, w_1, b_1)

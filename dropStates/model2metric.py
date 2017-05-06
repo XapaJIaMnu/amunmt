@@ -2,6 +2,7 @@
 """This script is used to replace the final model scores with an arbitrary
 metric. Initially that arbitrary metric is just going to be BLEU"""
 from sys import argv
+import sys
 from metrics.sentence_bleu import SentenceBleuScorer
 
 def score_sent(n_best_list, reference_sent):
@@ -30,6 +31,9 @@ def update_finished(new_scores, dropStates_location, cur_sent_id):
             if rounded_str not in new_scores.keys():
                 # Reducing by one doesn't always work, so we try increasing by 1 (we do 2 to compensate for the previous change)
                 rounded_str = str(float(rounded_str) + 0.000002)
+        if rounded_str not in new_scores.keys(): # Sometimes we just can't guess the floating number ;/
+            sys.stderr.write("Problem processing a line in %s, couldn't find key %s." % (finished_filename, rounded_str))
+            continue
         new_score = str(new_scores[rounded_str])
         outfile_txt = outfile_txt + context + ' ||| ' + new_score+ '\n'
     finished_file.close()
