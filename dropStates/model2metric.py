@@ -5,6 +5,19 @@ from sys import argv
 import sys
 from metrics.sentence_bleu import SentenceBleuScorer
 
+def complex_map_lookup(probmap, probability):
+    """This function iterates to the map and returns the entry closest to probability.
+    This is because of the floating point issues we've been having"""
+    prob = float(probability)
+    lowest_diff = 100
+    best = None
+    for item in probmap.keys():
+        diff = abs(float(item) - prob)
+        if diff < lowest_diff:
+            best = item
+            lowest_diff = diff
+    return best
+
 def score_sent(n_best_list, reference_sent):
     """Scores a sentence with a BLEU score"""
     bleu_scorer = SentenceBleuScorer('n=4') # @TODO is that a normal ngram length default for BLEU?
@@ -32,8 +45,7 @@ def update_finished(new_scores, dropStates_location, cur_sent_id):
                 # Reducing by one doesn't always work, so we try increasing by 1 (we do 2 to compensate for the previous change)
                 rounded_str = str(float(rounded_str) + 0.000002)
         if rounded_str not in new_scores.keys(): # Sometimes we just can't guess the floating number ;/
-            sys.stderr.write("Problem processing a line in %s, couldn't find key %s." % (finished_filename, rounded_str))
-            continue
+            rounded_str = complex_map_lookup(new_scores, score)
         new_score = str(new_scores[rounded_str])
         outfile_txt = outfile_txt + context + ' ||| ' + new_score+ '\n'
     finished_file.close()

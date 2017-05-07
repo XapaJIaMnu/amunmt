@@ -56,6 +56,100 @@ class DataBatcher:
         else:
             raise StopIteration
 
+class FFNN:
+    def __init__(self, hidden_layer=500, vocab_size=79057, batch_size=150, w_1=None, b_1=None):
+        self.batch_size = batch_size
+
+        self.x_size = hidden_layer # Size of the hidden layer input
+        self.y_size = vocab_size # Vocab size
+
+        # tf Graph Input
+        self.X = tf.placeholder("float", name="X", shape=[None, self.x_size])
+        self.X_ID = tf.placeholder("int32", name="X_ID", shape=[None])
+        self.Y = tf.placeholder("float", name="Y", shape=[None])
+
+        # init weights
+        self.w_1 = self._init_weight((self.y_size, self.x_size), 'w1', w_1) # Swapped around because tf.gather() is stupid
+        self.b_1 = self._init_weight((self.y_size, 1), 'b1', b_1) # Swapped around because tf.gather() is stupid
+
+        # Forward pass
+        self.y_hat = self.forwardpass()
+
+        # Error
+        self.cost = tf.reduce_sum(tf.pow((self.Y - self.y_hat), 2))
+
+        # Use adam to optimize and initialize the cost
+        self.train_op = tf.train.AdamOptimizer(0.001).minimize(self.cost)
+        self.init_op = tf.global_variables_initializer()
+
+        # Init arguments
+        self.sess = tf.Session()
+        self.sess.run(self.init_op)
+
+    @staticmethod
+    def _init_weight(shape, name, previous_weight):
+        """Initialize a weight matrix"""
+        if previous_weight is not None:
+            return tf.Variable(previous_weight, name=name)
+        else:
+            weight = tf.random_normal(shape, dtype='float32', name=name, stddev=0.1)
+        return tf.Variable(weight)
+
+    def forwardpass(self):
+        """Forward pass of the NN"""
+        # Instead of doing full matrix multiplication, just consider the vocabulary IDs
+        # that are in this batch
+        selected_embeddings_w_1 = tf.gather(self.w_1, self.X_ID)
+        selected_embeddings_b_1 = tf.gather(self.b_1, self.X_ID)
+
+        # Transpose the matrices to their traditional representation
+        selected_embeddings_w_1_t = tf.transpose(selected_embeddings_w_1, name="W1_T")
+        selected_embeddings_b_1_t = tf.transpose(selected_embeddings_b_1, name="B1_T")
+        
+        # Multiply with X with W_1
+        multiplication = tf.matmul(self.X, selected_embeddings_w_1_t, name="X_W1_T")
+
+        # We want the first column here, because every vector of X corresponds to a single
+        # vocabID and not each vector with all vocabIDs in the batch
+        mult_first_column = tf.gather(tf.transpose(multiplication), 1, name="Y_column_1")
+
+        # add the bias
+        bias_addition = tf.add(mult_first_column, selected_embeddings_b_1_t, name="Y_hat")
+        return bias_addition
+
+    def train(self, train_set_files, test_set, max_iterations=10):
+        current_generation = 0
+        while current_generation < max_iterations:
+            for filename in train_set_files:
+                self._train_file(filename)
+                error = self.get_error(test_set)
+                print("Error after: " + filename + " : " + str(error))
+
+    def _train_file(self, filename):
+        """Does one iteration over a file"""
+        batches = DataBatcher(filename, self.batch_size)
+        for minibatch in batches:
+            self._train_minibatch(minibatch)
+
+    def get_error(self, filename):
+        """Get the error of a set."""
+        error = 0
+        batches = DataBatcher(filename, self.batch_size)
+        for minibatch in batches:
+            error = error + self._get_error(minibatch)
+        return error
+
+    def _train_minibatch(self, minibatch):
+        [x_vec, x_id, y_train] = minibatch
+        self.sess.run(self.train_op, feed_dict={self.X: x_vec, self.X_ID: x_id, self.Y: y_train})
+
+    def _get_error(self, minibatch):
+        [x_vec, x_id, y_train] = minibatch
+        return self.sess.run(self.cost, feed_dict={self.X: x_vec, self.X_ID: x_id, self.Y: y_train})
+
+    def get_model(self):
+        return (self.w_1.eval(), self.b_1.eval())
+
 
 def init_weight(shape, name, previous_weight):
     """Initialize a weight matrix"""
