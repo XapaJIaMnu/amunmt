@@ -4,15 +4,17 @@ import numpy
 import gzip
 import bz2
 import sys
+from collections import namedtuple
 from sklearn.model_selection import train_test_split
 from tensorflow.python.client import timeline
 
 class DataBatcher:
     """This is a data iterator that reads in the file and provides the decoder with minibatches"""
-    def __init__(self, filename, batch_size=1000):
+    def __init__(self, filename, batch_size=1000, scale=1):
         self.batch_size = batch_size
         self.train_file = None
         self.fileclosed = False
+        self.scale = scale #Scaling is only available when producing the model
 
         # For preprocesssed files:
         self.current_idx = 0
@@ -65,7 +67,7 @@ class DataBatcher:
 
                 #Loop over the scores and add datapoints
                 for i in range(len(split_scores)):
-                    Y.append(split_scores[i])
+                    Y.append(float(split_scores[i])*self.scale) # We might want to scale the input to true percentages
                     X_wID.append(split_wordIDs[i])
                     X_vec.append(x_vec)
                     current_batch_size = current_batch_size + 1
@@ -147,7 +149,7 @@ class FFNN:
         self.y_hat = self.forwardpass()
 
         # Error
-        self.cost = tf.reduce_sum(tf.pow((self.Y - self.y_hat), 2))
+        self.cost = tf.reduce_mean(tf.squared_difference(self.y_hat, self.Y))
 
         # Use adam to optimize and initialize the cost
         self.train_op = tf.train.AdamOptimizer(0.001).minimize(self.cost)
@@ -195,7 +197,7 @@ class FFNN:
             for filename in train_set_files:
                 self._train_file(filename)
 
-            error = self.get_error(test_set)
+            error = self.get_mean_error(test_set)
             print("Error after epoch " + str(current_generation) + ": " + str(error))
 
             # Stop training when the error starts growing
@@ -217,13 +219,15 @@ class FFNN:
                 print("On batch: " + str(counter) + "...")
             self._train_minibatch(minibatch)
 
-    def get_error(self, filename):
+    def get_mean_error(self, filename):
         """Get the error of a set."""
         error = 0
         batches = DataBatcher(filename, self.batch_size)
+        counter = 0
         for minibatch in batches:
+            counter = counter + 1
             error = error + self._get_error(minibatch)
-        return error
+        return error/counter
 
     def _train_minibatch(self, minibatch):
         [x_vec, x_id, y_train] = minibatch
@@ -248,6 +252,58 @@ class FFNN:
         self.y_size, self.x_size = w_1.shape
         self.w_1 = self._init_weight((self.y_size, self.x_size), 'w_1', w_1)
         self.b_1 = self._init_weight((self.y_size, 1), 'b_1', b_1)
+
+class LookupSimulation:
+    """We'll use this class to simulate the calculation that the model makes so we can see if the
+    predicted score is the highest for this item that we are interested"""
+    def __init__(self, model, queryFile=None, batch_size=1):
+        self.w_1 = model[0].transpose()
+        self.b_1 = model[1].reshape(model[1].shape[0],)
+
+        self.inputFile = None
+        if queryFile is not None:
+            self.inputFile = DataBatcher(queryFile, batch_size)
+
+    def getItem(self):
+        if self.inputFile is not None:
+            return self.inputFile.__next__()
+        else:
+            return -1
+
+    def queryNext(self):
+        """Queries the next item in the input file"""
+        if self.inputFile is not None:
+            (vec, vocabId, bleu) = self.getItem()
+            bleu_vec = self.query(vec)
+            return self.analyze(bleu_vec, vocabId, bleu)
+        else:
+            return -1
+
+    def query(self, datavec):
+        """Does the query"""
+        return numpy.matmul(datavec,self.w_1) + self.b_1
+
+    def analyze(self, bleu_vec, true_point, true_score):
+        """Shows where the true point is in the distribution"""
+        vocab_with_id = []
+        for j in range(len(bleu_vec)):
+            this_vec = []
+            for i in range(len(bleu_vec.transpose())):
+                this_vec.append((bleu_vec[j, i], i))
+            this_vec.sort()
+            this_vec.reverse()
+            vocab_with_id.append(this_vec)
+
+        retlist = []
+        Analysis = namedtuple('Analysis', ('i', 'bleu', 'true_bleu', 'best_bleu'))
+        for j in range(len(vocab_with_id)):
+            sorted_bleu_vec = vocab_with_id[j]
+            for i in range(len(sorted_bleu_vec)):
+                if true_point[j] == sorted_bleu_vec[i][1]:
+                    # Returns which consecutive score, the bleu score, the true_score and the best score
+                    retlist.append(Analysis(i, sorted_bleu_vec[i], true_score[j], sorted_bleu_vec[0]))
+        return retlist
+
 
 def update_nematus_model(nematus_model, our_model, save_location):
     """This updates the existing nematus model with our updated w_4 and b_1"""
