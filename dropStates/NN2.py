@@ -35,6 +35,9 @@ class DataBatcher:
     def __iter__(self):
         return self
 
+    def next(self): # python2 compatibility
+        return self.__next__()
+
     def __next__(self):
         """Feeds the next batch to the neural network"""
         if self.preprocessed:
