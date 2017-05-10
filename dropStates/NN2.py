@@ -4,6 +4,8 @@ from collections import namedtuple
 import gzip
 import bz2
 import sys
+import os
+import pickle
 import tensorflow as tf
 import numpy
 
@@ -29,13 +31,18 @@ class DataBatcher:
             self.batch_size = len(self.train_file[0][0])
             self.current_idx = 0
             self.preprocessed = True
+        elif filename[-4:] == ".pkl":
+            self.train_file = pickle.load(open(filename, 'rb'))
+            self.current_idx = 0
+            self.preprocessed = True
         else:
             self.train_file = open(filename, 'r')
 
     def __iter__(self):
         return self
 
-    def next(self): # python2 compatibility
+    def next(self):
+        """Iterator method for python2 compatibility"""
         return self.__next__()
 
     def __next__(self):
@@ -78,6 +85,32 @@ class DataBatcher:
                 return (numpy.array(X_vec).astype('float32'), numpy.array(X_wID).astype("int32"), numpy.array(Y).astype('float32'))
             else:
                 raise StopIteration
+
+    def preprocess_and_split_and_save(self, save_location, threshold=1000000):
+        """We should split large files anyways."""
+        # Create the save_location if it's not present
+        if not os.path.isdir(save_location):
+            if os.path.exists(save_location):
+                print("Provided save location is a file: " + save_location + ". Need a directory or path to directory to be created")
+                exit()
+            else:
+                os.makedirs(save_location)
+        # Do the computation
+        appendstr = 0
+        totallegth = 0
+        batches = []
+        for minibatch in self:
+            batches.append(minibatch)
+            totallegth = totallegth + len(minibatch[0])
+            if totallegth > threshold:
+                with open(save_location + str(appendstr) + ".pkl", 'wb') as infile:
+                    pickle.dump(batches, infile)
+                appendstr = appendstr + 1
+                totallegth = 0
+                batches = []
+        if batches != []:
+            with open(save_location + str(appendstr) + ".pkl", 'wb') as infile:
+                pickle.dump(batches, infile)
 
     def preprocess_and_save(self, save_location):
         """Requires quite a bit of memory"""
@@ -181,7 +214,7 @@ class FFNN:
         # Transpose the matrices to their traditional representation
         selected_embeddings_w_1_t = tf.transpose(selected_embeddings_w_1, name="W1_T")
         selected_embeddings_b_1_t = tf.transpose(selected_embeddings_b_1, name="B1_T")
-        
+
         # Multiply with X with W_1
         multiplication = tf.matmul(self.X, selected_embeddings_w_1_t, name="X_W1_T")
 
@@ -193,12 +226,18 @@ class FFNN:
         bias_addition = tf.add(mult_first_column, selected_embeddings_b_1_t, name="Y_hat")
         return bias_addition
 
-    def train(self, train_set_files, test_set, max_iterations=10):
+    def train(self, train_set_files, test_set, max_iterations=10, verbose=False):
+        """The training set files is a list, but it also could be a list
+        containing a directory. The test set is a single file"""
         current_generation = 0
         prev_error = None
         while current_generation < max_iterations:
             for filename in train_set_files:
-                self._train_file(filename)
+                if os.path.isdir(filename):
+                    for subfile in os.listdir(filename):
+                        self._train_file(filename + '/' + subfile, verbose)
+                else:
+                    self._train_file(filename, verbose)
 
             error = self.get_mean_error(test_set)
             print("Error after epoch " + str(current_generation) + ": " + str(error))
@@ -212,8 +251,10 @@ class FFNN:
                 break
             current_generation = current_generation + 1
 
-    def _train_file(self, filename):
+    def _train_file(self, filename, verbose=False):
         """Does one iteration over a file"""
+        if verbose:
+            print("Training from file: " + filename)
         batches = DataBatcher(filename, self.batch_size)
         counter = 0
         for minibatch in batches:
