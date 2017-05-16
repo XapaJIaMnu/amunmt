@@ -64,4 +64,4 @@ for num in range(int(sys.argv[1])):
 
     states.close()
     finished.close()
-sys.stderr.write("\rFinished processing %s files." % sys.argv[1])
+sys.stderr.write("\rFinished processing %s files.\n" % sys.argv[1])
