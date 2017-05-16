@@ -2,11 +2,17 @@
  PATH_TO_AMUN="/home/dheart/uni_stuff/phd_2/sona_project/amunmt_dropstates/build/bin/amun"
  SCIPTS_DIR="/home/dheart/uni_stuff/phd_2/sona_project/amunmt_dropstates/dropStates"
  PARENT_DIR="/mnt/Storage/sona_exp/de-en_test/dev_state"
- CORPORA_DIR="/mnt/Storage/sona_exp/de-en_test/dev_state/corpora"
+ CORPORA_DIR="/mnt/Storage/sona_exp/de-en_test/dev_state/corpora/tst"
  MODEL_DIR="/mnt/Storage/sona_exp/de-en_test/dev_state"
  CORPUS_PREFIX="dev.bpe"
  SOURCE_LANG="de"
  TARGET_LANG="en"
+ 
+ # Options related to preprocessing the package
+ PREPROCESS=true
+ BATCH_SIZE="10000"
+ SCALE_FACTOR="100"
+ 
  FILE_SUFFIX=$1
  TARGET_FILE=$CORPORA_DIR/$CORPUS_PREFIX"."$TARGET_LANG"."$FILE_SUFFIX
  SOURCE_FILE=$CORPORA_DIR/$CORPUS_PREFIX"."$SOURCE_LANG"."$FILE_SUFFIX
@@ -30,3 +36,7 @@
  bzip2 -f "training_data_"$FILE_SUFFIX || return 1
  #Clean up
  rm -rf dropStates n_best_list || return 1
+ 
+ if [ "$PREPROCESS" = true ] ; then
+    $SCIPTS_DIR/preprocessor.py "training_data_"$FILE_SUFFIX".bz2" $BATCH_SIZE $SCALE_FACTOR preprocessed
+ fi
