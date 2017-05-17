@@ -35,7 +35,9 @@
  cd .. || return 1 
  bzip2 -f "training_data_"$FILE_SUFFIX || return 1
  #Clean up
- rm -rf dropStates n_best_list || return 1
+ rm -rf dropStates || return 1
+ #save n_best_list
+ bzip2 -f n_best_list || return 1
  
  if [ "$PREPROCESS" = true ] ; then
     $SCIPTS_DIR/preprocessor.py "training_data_"$FILE_SUFFIX".bz2" $BATCH_SIZE $SCALE_FACTOR preprocessed
