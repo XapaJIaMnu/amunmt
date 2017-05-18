@@ -117,7 +117,7 @@ class FFNN:
             counter = counter + 1
             self._train_minibatch(minibatch)
 
-    def get_mean_error(self, filename):
+    def _get_mean_error(self, filename):
         """Get the error of a set."""
         error = 0
         batches = DataBatcher(filename, self.batch_size)
@@ -126,6 +126,19 @@ class FFNN:
             counter = counter + 1
             error = error + self._get_error(minibatch)
         return error/counter
+
+    def get_mean_error(self, filename):
+        """Get the error of a set."""
+        error = 0
+        counter = 0
+        if os.path.isdir(filename):
+            for subfile in os.listdir(filename):
+                counter = counter + 1
+                error = error + self._get_mean_error(filename + '/' + subfile)
+            error = error/counter
+        else:
+            error = self._get_mean_error(filename)
+        return error
 
     def _train_minibatch(self, minibatch):
         [x_vec, x_id, y_train] = minibatch
