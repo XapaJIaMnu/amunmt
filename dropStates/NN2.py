@@ -22,7 +22,7 @@ class FFNN:
 
         self.hallucinate = hallucinate
         self.hallucinate_factor = hallucinate_factor
-        self.train = True # Differentiate between whether we are training and testing for turning
+        self.train_routine = True # Differentiate between whether we are training and testing for turning
                           # off and on the dropout
 
         # tf Graph Input
@@ -31,7 +31,7 @@ class FFNN:
         self.Y = tf.placeholder("float", name="Y", shape=[None])
 
         # Drop out on the input lyaer
-        if self.use_dropout and self.train:
+        if self.use_dropout and self.train_routine:
             self.X = tf.nn.dropout(self.X, self.dropout)
 
         # init weights
@@ -50,7 +50,7 @@ class FFNN:
         # Error
         self.cost = tf.reduce_mean(tf.squared_difference(self.y_hat, self.Y))
         # L2 regularization
-        self.regularizers = tf.nn.l2_loss(w_1)
+        self.regularizers = tf.nn.l2_loss(self.w_1, name="L2_norm")
         self.loss = tf.reduce_mean(self.cost + self.beta*self.regularizers)
 
         # Use adam to optimize and initialize the cost
@@ -128,7 +128,7 @@ class FFNN:
         """Does one iteration over a file"""
         if verbose:
             print("Training from file: " + filename)
-        batches = DataBatcher(filename, self.batch_size, self.hallucinate, self.hallucinate_factor, self.y_size)
+        batches = DataBatcher(filename, batch_size=self.batch_size, hallucinate=self.hallucinate, hallucinate_factor=self.hallucinate_factor, vocab_size=self.y_size)
         counter = 0
         for minibatch in batches:
             counter = counter + 1
@@ -158,12 +158,12 @@ class FFNN:
         return error
 
     def _train_minibatch(self, minibatch):
-        self.train = True
+        self.train_routine = True
         [x_vec, x_id, y_train] = minibatch
         self.sess.run(self.train_op, feed_dict={self.X: x_vec, self.X_ID: x_id, self.Y: y_train})
 
     def _get_error(self, minibatch):
-        self.train = False
+        self.train_routine = False
         [x_vec, x_id, y_train] = minibatch
         return self.sess.run(self.cost, feed_dict={self.X: x_vec, self.X_ID: x_id, self.Y: y_train})
 
