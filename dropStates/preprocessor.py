@@ -10,9 +10,24 @@ if sys.version_info > (3, 0):
 else:
     import cPickle as pickle # python2 compatibility
 
+from random import randrange, uniform
+
+def gen_rand_words(vocab_size, forbidden, num_rand, low_bleu):
+    """Generates random words with mock BLEU scores"""
+    ret_list = []
+    bleu_scorz = []
+
+    while len(ret_list) < num_rand:
+        newnum = randrange(0, vocab_size)
+        if (newnum not in forbidden) and (newnum not in ret_list):
+            bleu = uniform(0, low_bleu)
+            bleu_scorz.append(bleu)
+            ret_list.append(newnum)
+    return list(zip(ret_list, bleu_scorz))
+
 class DataBatcher:
     """This is a data iterator that reads in the file and provides the decoder with minibatches"""
-    def __init__(self, filename, batch_size=1000, scale=1):
+    def __init__(self, filename, batch_size=1000, scale=1, hallucinate=False, hallucinate_factor=10, vocab_size=10000):
         self.batch_size = batch_size
         self.train_file = None
         self.fileclosed = False
@@ -41,6 +56,10 @@ class DataBatcher:
             self.preprocessed = True
         else:
             self.train_file = open(filename, 'r')
+
+        self.hallucinate = hallucinate
+        self.num_hallucinate = hallucinate_factor
+        self.vocab_size = vocab_size
 
     def __iter__(self):
         return self
@@ -84,6 +103,14 @@ class DataBatcher:
                     X_wID.append(split_wordIDs[i])
                     X_vec.append(x_vec)
                     current_batch_size = current_batch_size + 1
+
+                if self.hallucinate:
+                    extra_data = gen_rand_words(self.vocab_size, X_wID, self.num_hallucinate, min(Y))
+                    current_batch_size = current_batch_size + len(extra_data)
+                    for item in extra_data:
+                        X_vec.append(x_vec)
+                        X_wID.append(item[0])
+                        Y.append(item[1])
 
             if X_vec != []:
                 return (numpy.array(X_vec).astype('float32'), numpy.array(X_wID).astype("int32"), numpy.array(Y).astype('float32'))
@@ -170,4 +197,3 @@ if __name__ == '__main__':
     else:
         batch_preprocessor = DataBatcher(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]))
         batch_preprocessor.preprocess_and_split_and_save(sys.argv[4])
-

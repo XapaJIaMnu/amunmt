@@ -9,11 +9,14 @@ from preprocessor import DataBatcher
 
 class FFNN:
     """Actual neural network to train the BLEU score multiple regression"""
-    def __init__(self, hidden_layer=500, vocab_size=85000, batch_size=10000, w_1=None, b_1=None, model_filename=None):
+    def __init__(self, hidden_layer=500, vocab_size=85000, batch_size=10000, w_1=None, b_1=None, model_filename=None, beta=0.01, dropout=0.2):
         self.batch_size = batch_size
 
         self.x_size = hidden_layer # Size of the hidden layer input
         self.y_size = vocab_size # Vocab size
+
+        self.beta = beta
+        self.dropout = dropout
 
         # tf Graph Input
         self.X = tf.placeholder("float", name="X", shape=[None, self.x_size])
@@ -35,9 +38,12 @@ class FFNN:
 
         # Error
         self.cost = tf.reduce_mean(tf.squared_difference(self.y_hat, self.Y))
+        # L2 regularization
+        self.regularizers = tf.nn.l2_loss(w_1)
+        self.loss = tf.reduce_mean(self.cost + self.beta*self.regularizers)
 
         # Use adam to optimize and initialize the cost
-        self.train_op = tf.train.AdamOptimizer(0.001).minimize(self.cost)
+        self.train_op = tf.train.AdamOptimizer(0.001).minimize(self.loss)
         self.init_op = tf.global_variables_initializer()
 
         # Init arguments
