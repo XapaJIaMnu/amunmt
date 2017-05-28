@@ -9,19 +9,30 @@ from preprocessor import DataBatcher
 
 class FFNN:
     """Actual neural network to train the BLEU score multiple regression"""
-    def __init__(self, hidden_layer=500, vocab_size=85000, batch_size=10000, w_1=None, b_1=None, model_filename=None, beta=0.01, dropout=0.2):
+    def __init__(self, hidden_layer=500, vocab_size=85000, batch_size=10000, w_1=None, b_1=None,\
+     model_filename=None, beta=0.01, use_dropout=False, dropout=0.2, hallucinate=False, hallucinate_factor=10):
         self.batch_size = batch_size
 
         self.x_size = hidden_layer # Size of the hidden layer input
         self.y_size = vocab_size # Vocab size
 
         self.beta = beta
+        self.use_dropout = use_dropout
         self.dropout = dropout
+
+        self.hallucinate = hallucinate
+        self.hallucinate_factor = hallucinate_factor
+        self.train = True # Differentiate between whether we are training and testing for turning
+                          # off and on the dropout
 
         # tf Graph Input
         self.X = tf.placeholder("float", name="X", shape=[None, self.x_size])
         self.X_ID = tf.placeholder("int32", name="X_ID", shape=[None])
         self.Y = tf.placeholder("float", name="Y", shape=[None])
+
+        # Drop out on the input lyaer
+        if self.use_dropout and self.train:
+            self.X = tf.nn.dropout(self.X, self.dropout)
 
         # init weights
         self.w_1 = None
@@ -117,7 +128,7 @@ class FFNN:
         """Does one iteration over a file"""
         if verbose:
             print("Training from file: " + filename)
-        batches = DataBatcher(filename, self.batch_size)
+        batches = DataBatcher(filename, self.batch_size, self.hallucinate, self.hallucinate_factor, self.y_size)
         counter = 0
         for minibatch in batches:
             counter = counter + 1
@@ -147,10 +158,12 @@ class FFNN:
         return error
 
     def _train_minibatch(self, minibatch):
+        self.train = True
         [x_vec, x_id, y_train] = minibatch
         self.sess.run(self.train_op, feed_dict={self.X: x_vec, self.X_ID: x_id, self.Y: y_train})
 
     def _get_error(self, minibatch):
+        self.train = False
         [x_vec, x_id, y_train] = minibatch
         return self.sess.run(self.cost, feed_dict={self.X: x_vec, self.X_ID: x_id, self.Y: y_train})
 
