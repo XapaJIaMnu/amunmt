@@ -58,7 +58,6 @@ class DataBatcher:
             self.train_file = open(filename, 'r')
 
         self.hallucinate = hallucinate
-	print(self.hallucinate)
         self.num_hallucinate = hallucinate_factor
         self.vocab_size = vocab_size
 
