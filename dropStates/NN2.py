@@ -90,7 +90,9 @@ class FFNN:
 
         # add the bias
         bias_addition = tf.add(mult_first_column, selected_embeddings_b_1_t, name="Y_hat")
-        return bias_addition
+
+        # sigmoid it and return it
+        return tf.sigmoid(bias_addition)
 
     def train(self, train_set_files, test_set, max_iterations=10, verbose=False):
         """The training set files is a list, but it also could be a list
